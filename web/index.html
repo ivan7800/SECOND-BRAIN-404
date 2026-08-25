@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d10">
+  <title>Second Brain 404 v2.1.0</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="shell">
+  <aside>
+    <div class="brand">
+      <b>404</b>
+      <div><strong>SECOND BRAIN</strong><small>LOCAL KNOWLEDGE OS · v2.1.0</small></div>
+    </div>
+    <nav>
+      <button class="nav active" data-view="chat">ASK</button>
+      <button class="nav" data-view="search">SEARCH</button>
+      <button class="nav" data-view="knowledge">KNOWLEDGE</button>
+      <button class="nav" data-view="memory">MEMORY</button>
+      <button class="nav" data-view="graph">GRAPH</button>
+      <button class="nav" data-view="system">SYSTEM</button>
+    </nav>
+    <div class="status">
+      <span id="dot"></span>
+      <div><strong id="status">Conectando…</strong><small id="provider">—</small></div>
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <div>
+        <p>MEMORY ARCHITECTURE / FINAL RELEASE</p>
+        <h1 id="title">Pregunta a tu conocimiento</h1>
+      </div>
+      <div class="actions">
+        <label><input id="file" type="file" accept=".pdf,.docx,.md,.txt">+ Documento</label>
+        <button id="index">Reindexar</button>
+      </div>
+    </header>
+
+    <section id="view-chat" class="view active">
+      <div class="hero">
+        <div>
+          <span>RAG PRIVADO + MEMORIA CONTROLADA</span>
+          <h2>Tu contexto, recuperado y conectado.</h2>
+          <p>Consulta documentos con fuentes. Las memorias duraderas se proponen, pero nunca se guardan sin tu aprobación.</p>
+        </div>
+        <div class="metrics">
+          <div><b id="docs">0</b><small>documentos</small></div>
+          <div><b id="chunks">0</b><small>fragmentos</small></div>
+          <div><b id="vectors">0</b><small>vectores</small></div>
+          <div><b id="memories">0</b><small>memorias</small></div>
+        </div>
+      </div>
+
+      <div id="chat" class="chat">
+        <div class="msg ai"><i>404</i><div>Estoy listo. Copia archivos a 00_RAW/INBOX o súbelos aquí: el Watch Folder los indexará automáticamente.</div></div>
+      </div>
+
+      <form id="chatForm" class="composer">
+        <textarea id="question" rows="2" placeholder="¿Qué decisiones tomé sobre el proyecto…?" required></textarea>
+        <button>Enviar</button>
+      </form>
+    </section>
+
+    <section id="view-search" class="view">
+      <div class="panel">
+        <h2>Búsqueda híbrida</h2>
+        <p>Texto completo + similitud semántica cuando Ollama está disponible.</p>
+        <form id="searchForm" class="search">
+          <input id="query" placeholder="Buscar…" required>
+          <button>Buscar</button>
+        </form>
+        <div id="results"></div>
+      </div>
+    </section>
+
+    <section id="view-knowledge" class="view">
+      <div class="panel">
+        <div class="head">
+          <div><h2>Conocimiento indexado</h2><p>Fuentes que forman tu contexto recuperable.</p></div>
+          <button id="refresh">Actualizar</button>
+        </div>
+        <div id="documents"></div>
+      </div>
+    </section>
+
+    <section id="view-memory" class="view">
+      <div class="panel">
+        <div class="head">
+          <div>
+            <h2>Memoria controlada</h2>
+            <p>La IA propone memorias duraderas. Tú decides cuáles pasan a 40_MEMORY.</p>
+          </div>
+          <button id="refreshMemory">Actualizar</button>
+        </div>
+        <div id="memoryList" class="memory-list"></div>
+      </div>
+    </section>
+
+    <section id="view-graph" class="view">
+      <div class="panel graph-panel">
+        <div class="head">
+          <div>
+            <h2>Grafo de conocimiento</h2>
+            <p>Visualiza enlaces <code>[[WikiLink]]</code> entre tus notas.</p>
+          </div>
+          <button id="refreshGraph">Actualizar</button>
+        </div>
+        <div class="graph-meta" id="graphMeta"></div>
+        <canvas id="graphCanvas" width="1200" height="700" aria-label="Grafo de conocimiento"></canvas>
+      </div>
+    </section>
+
+    <section id="view-system" class="view">
+      <div class="grid">
+        <div class="panel"><h2>Estado</h2><dl id="info"></dl></div>
+        <div class="panel">
+          <h2>Automatización</h2>
+          <ul>
+            <li><b>Watch Folder.</b> Detecta archivos nuevos o modificados.</li>
+            <li><b>Índice incremental.</b> Solo reprocesa lo que cambia.</li>
+            <li><b>Memoria propuesta.</b> Nunca persiste sin aprobación.</li>
+            <li><b>OUTPUT aislado.</b> Evita contaminación de fuentes.</li>
+          </ul>
+        </div>
+        <div class="panel full"><h2>Actividad</h2><pre id="activity">Esperando acciones…</pre></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast"></div>
+<script src="/assets/app.js" defer></script>
+</body>
+</html>

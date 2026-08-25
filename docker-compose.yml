@@ -1,0 +1,19 @@
+services:
+  second-brain:
+    build: .
+    container_name: second-brain-404
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4040:4040"
+    env_file:
+      - .env
+    environment:
+      BRAIN_ROOT: /brain
+    volumes:
+      - "${BRAIN_HOST_PATH:-./brain}:/brain"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
