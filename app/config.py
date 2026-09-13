@@ -15,6 +15,11 @@ class Settings:
     gemini_api_key: str
     gemini_model: str
     rag_top_k: int
+    rag_candidate_pool: int
+    rag_rrf_k: int
+    rag_mmr_lambda: float
+    rag_min_score: float
+    rag_max_per_document: int
     chunk_size: int
     chunk_overlap: int
     max_upload_mb: int
@@ -26,6 +31,13 @@ class Settings:
 def _ival(name, default, lo, hi):
     try:
         value = int(os.getenv(name, str(default)))
+    except ValueError:
+        value = default
+    return max(lo, min(hi, value))
+
+def _fval(name, default, lo, hi):
+    try:
+        value = float(os.getenv(name, str(default)))
     except ValueError:
         value = default
     return max(lo, min(hi, value))
@@ -57,6 +69,11 @@ def get_settings():
         gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.7-flash"),
         rag_top_k=_ival("RAG_TOP_K", 6, 1, 20),
+        rag_candidate_pool=_ival("RAG_CANDIDATE_POOL", 50, 10, 250),
+        rag_rrf_k=_ival("RAG_RRF_K", 60, 10, 200),
+        rag_mmr_lambda=_fval("RAG_MMR_LAMBDA", 0.72, 0.05, 1.0),
+        rag_min_score=_fval("RAG_MIN_SCORE", 0.08, 0.0, 1.0),
+        rag_max_per_document=_ival("RAG_MAX_PER_DOCUMENT", 2, 1, 10),
         chunk_size=_ival("CHUNK_SIZE", 1400, 400, 5000),
         chunk_overlap=_ival("CHUNK_OVERLAP", 220, 0, 1000),
         max_upload_mb=_ival("MAX_UPLOAD_MB", 50, 1, 500),
