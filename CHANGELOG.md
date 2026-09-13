@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.2.0 — RAG Quality & Reliability
+- Nuevo ranking híbrido mediante Weighted Reciprocal Rank Fusion (RRF).
+- MMR para diversidad y reducción de chunks redundantes.
+- Límite configurable de resultados por documento.
+- Pool de candidatos, RRF k, lambda MMR y score mínimo configurables.
+- Filtros por área de conocimiento en API y búsqueda web.
+- Nuevo `/api/inspect` con diagnóstico del retrieval.
+- SEARCH muestra RRF, MMR y posiciones léxica/semántica.
+- Prompt RAG endurecido frente a prompt injection documental.
+- Upload valida contenido real: firma PDF, estructura DOCX y texto UTF-8 no binario.
+- Health expone estrategia y parámetros RAG efectivos.
+- Suite `test_rag_v22.py` con regresión de ranking, diversidad, filtros y seguridad.
+- UI y documentación actualizadas a v2.2.0.
+
 ## 2.1.0
 - Release final de la rama 2.1.
 - Separados `CHAT_PROVIDER` y `EMBEDDING_PROVIDER`, manteniendo compatibilidad con `AI_PROVIDER`.
