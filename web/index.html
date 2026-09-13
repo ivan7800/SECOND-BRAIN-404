@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0b0d10">
-  <title>Second Brain 404 v2.2.0</title>
+  <title>Second Brain 404 v2.3.0</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
   <aside>
     <div class="brand">
       <b>404</b>
-      <div><strong>SECOND BRAIN</strong><small>LOCAL KNOWLEDGE OS · v2.2.0</small></div>
+      <div><strong>SECOND BRAIN</strong><small>LOCAL KNOWLEDGE OS · v2.3.0</small></div>
     </div>
     <nav>
       <button class="nav active" data-view="chat">ASK</button>
@@ -31,7 +31,7 @@
   <main>
     <header>
       <div>
-        <p>RAG QUALITY & RELIABILITY / v2.2</p>
+        <p>RETRIEVAL INTELLIGENCE / v2.3</p>
         <h1 id="title">Pregunta a tu conocimiento</h1>
       </div>
       <div class="actions">
@@ -43,9 +43,9 @@
     <section id="view-chat" class="view active">
       <div class="hero">
         <div>
-          <span>RRF + MMR · RAG PRIVADO · MEMORIA CONTROLADA</span>
-          <h2>Tu contexto, recuperado con menos ruido.</h2>
-          <p>Combina búsqueda léxica y semántica, reduce fragmentos redundantes y conserva trazabilidad de cada fuente.</p>
+          <span>STRUCTURAL CHUNKING · RERANK · RRF · MMR</span>
+          <h2>Más precisión, mejores citas, menos ruido.</h2>
+          <p>La v2.3 entiende secciones de Markdown/DOCX/PDF, reordena candidatos localmente y permite abrir cada fuente en su fragmento original.</p>
         </div>
         <div class="metrics">
           <div><b id="docs">0</b><small>documentos</small></div>
@@ -56,7 +56,7 @@
       </div>
 
       <div id="chat" class="chat">
-        <div class="msg ai"><i>404</i><div>Estoy listo. La v2.2 prioriza fuentes relevantes y diversas, con defensa frente a instrucciones incrustadas en documentos.</div></div>
+        <div class="msg ai"><i>404</i><div>Estoy listo. Las citas ahora son navegables y el retrieval se puede medir con un benchmark reproducible.</div></div>
       </div>
 
       <form id="chatForm" class="composer">
@@ -67,8 +67,13 @@
 
     <section id="view-search" class="view">
       <div class="panel">
-        <h2>Búsqueda híbrida RRF + MMR</h2>
-        <p>Fusiona FTS5 y similitud semántica, limita repeticiones del mismo documento y expone el ranking para auditoría.</p>
+        <div class="head">
+          <div>
+            <h2>Knowledge Inspector v2.3</h2>
+            <p>RRF + reranker local opcional + MMR, con trazabilidad y fuente navegable.</p>
+          </div>
+          <button id="runBenchmark">Benchmark RAG</button>
+        </div>
         <form id="searchForm" class="search search-v22">
           <input id="query" placeholder="Buscar…" required>
           <select id="areaFilter" aria-label="Filtrar por área">
@@ -81,6 +86,7 @@
           <button>Buscar</button>
         </form>
         <div id="retrievalMeta" class="graph-meta"></div>
+        <div id="benchmarkResults" class="benchmark-results"></div>
         <div id="results"></div>
       </div>
     </section>
@@ -126,12 +132,12 @@
       <div class="grid">
         <div class="panel"><h2>Estado</h2><dl id="info"></dl></div>
         <div class="panel">
-          <h2>Calidad RAG</h2>
+          <h2>Retrieval Intelligence</h2>
           <ul>
-            <li><b>Weighted RRF.</b> Fusiona ranking léxico y semántico sin depender de escalas incompatibles.</li>
-            <li><b>MMR.</b> Penaliza fragmentos redundantes y aumenta diversidad.</li>
-            <li><b>Prompt-injection guard.</b> Las fuentes se tratan como datos no confiables.</li>
-            <li><b>Upload verificado.</b> PDF/DOCX/TXT/MD se validan por contenido antes de indexarse.</li>
+            <li><b>Chunking estructural.</b> Markdown y DOCX se segmentan por secciones; PDF conserva páginas.</li>
+            <li><b>Reranker local.</b> Reordena por cobertura, título, frase y proximidad sin dependencia adicional.</li>
+            <li><b>Citas navegables.</b> Cada resultado abre el fragmento exacto y permite abrir el archivo original.</li>
+            <li><b>Benchmark automático.</b> Hit rate y MRR permiten detectar regresiones de calidad.</li>
           </ul>
         </div>
         <div class="panel full"><h2>Actividad</h2><pre id="activity">Esperando acciones…</pre></div>
@@ -139,6 +145,18 @@
     </section>
   </main>
 </div>
+
+<dialog id="sourceDialog" class="source-dialog">
+  <div class="source-dialog-head">
+    <div><strong id="sourceTitle">Fuente</strong><small id="sourceLocator"></small></div>
+    <button id="closeSource" aria-label="Cerrar">×</button>
+  </div>
+  <pre id="sourceText"></pre>
+  <div class="source-dialog-actions">
+    <a id="openOriginal" target="_blank" rel="noopener">Abrir original</a>
+  </div>
+</dialog>
+
 <div id="toast"></div>
 <script src="/assets/app.js" defer></script>
 </body>
