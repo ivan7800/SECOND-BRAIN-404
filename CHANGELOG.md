@@ -1,54 +1,37 @@
 # Changelog
 
+## 2.3.0 — Retrieval Intelligence
+- Chunking estructural para Markdown, DOCX y PDF con localizadores preservados.
+- Reranker local opcional basado en cobertura, título, frase y proximidad.
+- Pipeline `Weighted RRF + optional rerank + MMR`.
+- Citas navegables desde chat y búsqueda.
+- Nuevos endpoints `/api/source` y `/api/source/raw`.
+- Benchmark RAG reproducible con Hit@K, MRR y rango medio.
+- Nuevo endpoint `/api/benchmark` y botón `Benchmark RAG` en SEARCH.
+- Añadido `benchmarks/rag_queries.json` como smoke benchmark inicial.
+- Añadido `RUN-RAG-BENCHMARK.bat`.
+- Añadido `.env.example` completo para instalaciones limpias.
+- Health API expone reranker, peso y chunking efectivo.
+- Suite v2.3 añadida; mantiene compatibilidad con tests v2.1/v2.2.
+
 ## 2.2.0 — RAG Quality & Reliability
-- Nuevo ranking híbrido mediante Weighted Reciprocal Rank Fusion (RRF).
-- MMR para diversidad y reducción de chunks redundantes.
-- Límite configurable de resultados por documento.
-- Pool de candidatos, RRF k, lambda MMR y score mínimo configurables.
-- Filtros por área de conocimiento en API y búsqueda web.
-- Nuevo `/api/inspect` con diagnóstico del retrieval.
-- SEARCH muestra RRF, MMR y posiciones léxica/semántica.
-- Prompt RAG endurecido frente a prompt injection documental.
-- Upload valida contenido real: firma PDF, estructura DOCX y texto UTF-8 no binario.
-- Health expone estrategia y parámetros RAG efectivos.
-- Suite `test_rag_v22.py` con regresión de ranking, diversidad, filtros y seguridad.
-- UI y documentación actualizadas a v2.2.0.
+- Weighted Reciprocal Rank Fusion (RRF).
+- MMR para reducir redundancia.
+- Límite por documento.
+- Knowledge Inspector.
+- Filtro por áreas.
+- Score mínimo y pool de candidatos configurables.
+- Defensa frente a prompt injection documental.
+- Validación de contenido de uploads.
+- `/api/inspect` y diagnóstico RAG en `/api/health`.
 
 ## 2.1.0
 - Release final de la rama 2.1.
 - Separados `CHAT_PROVIDER` y `EMBEDDING_PROVIDER`, manteniendo compatibilidad con `AI_PROVIDER`.
 - Embeddings configurables como `ollama` o `none`, con fallback léxico FTS5.
 - Exclusión mutua de indexación para evitar carreras entre watcher, reindexado manual y memoria aprobada.
-- Diagnóstico Windows distingue Second Brain 404 de un proceso ajeno en el puerto 4040.
-- Ollama fijado a una versión concreta en Compose para mayor reproducibilidad.
-- `SECURITY.md` actualizado a v2.1.0.
-- Añadida licencia MIT.
-- Suite de tests ampliada.
-- Health API informa por separado de proveedor de chat y embeddings.
-
-## 2.1.0-rc1
-- Watch Folder automático.
-- Indexación incremental por mtime/tamaño.
-- Reconciliación de documentos eliminados.
-- Memoria automática con aprobación humana.
-- Panel MEMORY.
-- Grafo Obsidian por WikiLinks.
-- Panel GRAPH.
-- 00_RAW/INBOX.
-- Instalador Windows.
-- Diagnóstico PowerShell.
-- TEST-RELEASE.bat.
-- Health ampliado.
-- Tests de grafo.
+- Diagnóstico Windows, licencia MIT y suite de tests ampliada.
 
 ## 2.0.0
-- Docker.
-- Obsidian vault.
-- SQLite FTS5.
-- RAG.
-- Embeddings Ollama.
-- Chat Ollama/OpenAI/Gemini.
-- Upload.
-- Fuentes.
-- Interfaz responsive.
-- Lanzadores Windows.
+- Docker, Obsidian vault, SQLite FTS5, RAG, embeddings Ollama.
+- Chat Ollama/OpenAI/Gemini, upload, fuentes e interfaz responsive.
