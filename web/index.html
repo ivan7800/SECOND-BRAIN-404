@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0b0d10">
-  <title>Second Brain 404 v2.1.0</title>
+  <title>Second Brain 404 v2.2.0</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
   <aside>
     <div class="brand">
       <b>404</b>
-      <div><strong>SECOND BRAIN</strong><small>LOCAL KNOWLEDGE OS · v2.1.0</small></div>
+      <div><strong>SECOND BRAIN</strong><small>LOCAL KNOWLEDGE OS · v2.2.0</small></div>
     </div>
     <nav>
       <button class="nav active" data-view="chat">ASK</button>
@@ -31,7 +31,7 @@
   <main>
     <header>
       <div>
-        <p>MEMORY ARCHITECTURE / FINAL RELEASE</p>
+        <p>RAG QUALITY & RELIABILITY / v2.2</p>
         <h1 id="title">Pregunta a tu conocimiento</h1>
       </div>
       <div class="actions">
@@ -43,9 +43,9 @@
     <section id="view-chat" class="view active">
       <div class="hero">
         <div>
-          <span>RAG PRIVADO + MEMORIA CONTROLADA</span>
-          <h2>Tu contexto, recuperado y conectado.</h2>
-          <p>Consulta documentos con fuentes. Las memorias duraderas se proponen, pero nunca se guardan sin tu aprobación.</p>
+          <span>RRF + MMR · RAG PRIVADO · MEMORIA CONTROLADA</span>
+          <h2>Tu contexto, recuperado con menos ruido.</h2>
+          <p>Combina búsqueda léxica y semántica, reduce fragmentos redundantes y conserva trazabilidad de cada fuente.</p>
         </div>
         <div class="metrics">
           <div><b id="docs">0</b><small>documentos</small></div>
@@ -56,7 +56,7 @@
       </div>
 
       <div id="chat" class="chat">
-        <div class="msg ai"><i>404</i><div>Estoy listo. Copia archivos a 00_RAW/INBOX o súbelos aquí: el Watch Folder los indexará automáticamente.</div></div>
+        <div class="msg ai"><i>404</i><div>Estoy listo. La v2.2 prioriza fuentes relevantes y diversas, con defensa frente a instrucciones incrustadas en documentos.</div></div>
       </div>
 
       <form id="chatForm" class="composer">
@@ -67,12 +67,20 @@
 
     <section id="view-search" class="view">
       <div class="panel">
-        <h2>Búsqueda híbrida</h2>
-        <p>Texto completo + similitud semántica cuando Ollama está disponible.</p>
-        <form id="searchForm" class="search">
+        <h2>Búsqueda híbrida RRF + MMR</h2>
+        <p>Fusiona FTS5 y similitud semántica, limita repeticiones del mismo documento y expone el ranking para auditoría.</p>
+        <form id="searchForm" class="search search-v22">
           <input id="query" placeholder="Buscar…" required>
+          <select id="areaFilter" aria-label="Filtrar por área">
+            <option value="">Todas las áreas</option>
+            <option value="00_RAW">00_RAW</option>
+            <option value="10_WIKI">10_WIKI</option>
+            <option value="20_PROJECTS">20_PROJECTS</option>
+            <option value="40_MEMORY">40_MEMORY</option>
+          </select>
           <button>Buscar</button>
         </form>
+        <div id="retrievalMeta" class="graph-meta"></div>
         <div id="results"></div>
       </div>
     </section>
@@ -118,12 +126,12 @@
       <div class="grid">
         <div class="panel"><h2>Estado</h2><dl id="info"></dl></div>
         <div class="panel">
-          <h2>Automatización</h2>
+          <h2>Calidad RAG</h2>
           <ul>
-            <li><b>Watch Folder.</b> Detecta archivos nuevos o modificados.</li>
-            <li><b>Índice incremental.</b> Solo reprocesa lo que cambia.</li>
-            <li><b>Memoria propuesta.</b> Nunca persiste sin aprobación.</li>
-            <li><b>OUTPUT aislado.</b> Evita contaminación de fuentes.</li>
+            <li><b>Weighted RRF.</b> Fusiona ranking léxico y semántico sin depender de escalas incompatibles.</li>
+            <li><b>MMR.</b> Penaliza fragmentos redundantes y aumenta diversidad.</li>
+            <li><b>Prompt-injection guard.</b> Las fuentes se tratan como datos no confiables.</li>
+            <li><b>Upload verificado.</b> PDF/DOCX/TXT/MD se validan por contenido antes de indexarse.</li>
           </ul>
         </div>
         <div class="panel full"><h2>Actividad</h2><pre id="activity">Esperando acciones…</pre></div>
