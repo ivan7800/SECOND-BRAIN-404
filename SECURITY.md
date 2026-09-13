@@ -1,33 +1,24 @@
 # Seguridad
 
-Second Brain 404 v2.2.0 está diseñado para uso local.
+Second Brain 404 v2.3.0 está diseñado para uso local.
 
 Controles incluidos:
 
-- Bind a localhost.
+- Bind a localhost por defecto.
 - Sin telemetría.
 - Claves por variables de entorno.
-- Upload con allow-list.
-- Validación de contenido después de la subida:
-  - firma `%PDF-` para PDF;
-  - estructura ZIP/DOCX y `word/document.xml` para DOCX;
-  - rechazo de NUL/binario y validación UTF-8 para Markdown/TXT.
+- Upload con allow-list y validación del contenido real.
 - Protección frente a path traversal.
 - Tamaño máximo configurable.
 - CSP, `X-Frame-Options`, `nosniff` y política de permisos.
 - `50_OUTPUT` excluido de indexación por defecto.
-- Prompt RAG con separación explícita entre instrucciones del sistema y datos documentales.
-- Las fuentes recuperadas se consideran contenido no confiable y no pueden redefinir el rol del asistente.
+- Fuentes navegables restringidas a `INDEX_DIRS`.
+- `/api/source/raw` no permite navegar fuera del vault ni abrir áreas no indexables.
+- Los documentos RAG se tratan como datos no confiables: sus instrucciones nunca deben modificar el comportamiento del asistente.
+- El benchmark de retrieval no envía contenido a servicios externos por sí mismo; utiliza el proveedor de embeddings configurado por el usuario.
 
-## Límites del modelo de seguridad
+## Modelo de amenazas
 
-Second Brain 404 no pretende ser un servicio público multiusuario. Si se publica en LAN, VPN o Internet, añade como mínimo:
+El sistema reduce riesgos de archivos con extensión falsificada, path traversal y prompt injection documental. No pretende ser un servicio multiusuario ni una aplicación preparada para exposición pública.
 
-- autenticación fuerte;
-- TLS;
-- autorización por usuario/colección;
-- rate limiting;
-- gestión profesional de secretos;
-- logging y alertas;
-- aislamiento adicional de archivos y procesos;
-- revisión específica de riesgos de prompt injection para tu entorno.
+Si se publica en una red o Internet, añade autenticación, TLS, autorización, rate limiting, auditoría y gestión profesional de secretos.
