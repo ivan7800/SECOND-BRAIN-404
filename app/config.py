@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import os
 
+
 @dataclass(frozen=True)
 class Settings:
     brain_root: Path
@@ -20,6 +21,8 @@ class Settings:
     rag_mmr_lambda: float
     rag_min_score: float
     rag_max_per_document: int
+    rag_reranker: str
+    rag_rerank_weight: float
     chunk_size: int
     chunk_overlap: int
     max_upload_mb: int
@@ -28,12 +31,14 @@ class Settings:
     watch_interval_seconds: int
     auto_memory_suggestions: bool
 
+
 def _ival(name, default, lo, hi):
     try:
         value = int(os.getenv(name, str(default)))
     except ValueError:
         value = default
     return max(lo, min(hi, value))
+
 
 def _fval(name, default, lo, hi):
     try:
@@ -42,9 +47,16 @@ def _fval(name, default, lo, hi):
         value = default
     return max(lo, min(hi, value))
 
+
 def _bval(name, default):
     raw = os.getenv(name, "true" if default else "false").strip().lower()
     return raw in {"1", "true", "yes", "on", "si", "sí"}
+
+
+def _choice(name, default, allowed):
+    value = os.getenv(name, default).strip().lower()
+    return value if value in allowed else default
+
 
 def get_settings():
     root = Path(os.getenv("BRAIN_ROOT", "./brain")).resolve()
@@ -74,6 +86,8 @@ def get_settings():
         rag_mmr_lambda=_fval("RAG_MMR_LAMBDA", 0.72, 0.05, 1.0),
         rag_min_score=_fval("RAG_MIN_SCORE", 0.08, 0.0, 1.0),
         rag_max_per_document=_ival("RAG_MAX_PER_DOCUMENT", 2, 1, 10),
+        rag_reranker=_choice("RAG_RERANKER", "local", {"local", "none"}),
+        rag_rerank_weight=_fval("RAG_RERANK_WEIGHT", 0.24, 0.0, 0.60),
         chunk_size=_ival("CHUNK_SIZE", 1400, 400, 5000),
         chunk_overlap=_ival("CHUNK_OVERLAP", 220, 0, 1000),
         max_upload_mb=_ival("MAX_UPLOAD_MB", 50, 1, 500),
@@ -82,6 +96,7 @@ def get_settings():
         watch_interval_seconds=_ival("WATCH_INTERVAL_SECONDS", 15, 5, 3600),
         auto_memory_suggestions=_bval("AUTO_MEMORY_SUGGESTIONS", True),
     )
+
 
 def ensure_structure(s):
     folders = [
