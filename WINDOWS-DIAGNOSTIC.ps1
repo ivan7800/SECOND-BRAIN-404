@@ -7,7 +7,7 @@ function Result($Name, $Ok, $Detail) {
 }
 
 Write-Host ""
-Write-Host "SECOND BRAIN 404 v2.1.0 FINAL - Windows Diagnostic" -ForegroundColor Cyan
+Write-Host "SECOND BRAIN 404 v2.3.0 - Windows Diagnostic" -ForegroundColor Cyan
 Write-Host "------------------------------------------------"
 
 $docker = Get-Command docker -ErrorAction SilentlyContinue
@@ -48,7 +48,13 @@ if ($drive) {
 }
 
 if ($health) {
-    Result "Second Brain API" $true "v$($health.version)"
+    $versionOk = [string]$health.version -like "2.3.*"
+    Result "Second Brain API" $versionOk "v$($health.version)"
+    if ($health.rag) {
+        Result "RAG pipeline" ([bool]$health.rag.strategy) "$($health.rag.strategy)"
+        Result "Chunking" ($health.rag.chunking -eq "structural") "$($health.rag.chunking)"
+        Result "Reranker" ([bool]$health.rag.reranker) "$($health.rag.reranker) · peso $($health.rag.rerank_weight)"
+    }
 } else {
     Result "Second Brain API" $false "No responde (normal si aún no está iniciado)"
 }
