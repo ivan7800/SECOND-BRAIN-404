@@ -12,13 +12,14 @@ from pydantic import BaseModel, Field
 
 from .config import get_settings, ensure_structure
 from .db import Database
-from .security import validate_upload, ensure_inside
-from .retrieval import index_all, search, build_rag_prompt
+from .security import validate_upload, validate_file_content, ensure_inside
+from .retrieval import index_all, search, inspect_search, build_rag_prompt
 from .llm import generate, LLMError
 from .graph import build_graph
 from .memory import propose_memory, list_candidates, approve_candidate, reject_candidate
 from .watcher import WatchState, watch_loop
 
+VERSION = "2.2.0"
 s = get_settings()
 ensure_structure(s)
 db = Database(s.brain_root / "90_SYSTEM/database/second-brain.db")
@@ -44,7 +45,7 @@ async def lifespan(app):
 
 app = FastAPI(
     title="Second Brain 404",
-    version="2.1.0",
+    version=VERSION,
     docs_url="/api/docs",
     redoc_url=None,
     lifespan=lifespan,
@@ -53,10 +54,26 @@ app = FastAPI(
 class SearchRequest(BaseModel):
     query: str = Field(min_length=2, max_length=2000)
     top_k: int | None = Field(default=None, ge=1, le=20)
+    source_areas: list[str] | None = None
 
 class ChatRequest(BaseModel):
     question: str = Field(min_length=2, max_length=8000)
     top_k: int | None = Field(default=None, ge=1, le=20)
+    source_areas: list[str] | None = None
+
+
+def normalize_source_areas(values):
+    if not values:
+        return None
+    allowed = set(s.index_dirs)
+    clean = []
+    for value in values[:20]:
+        area = str(value).strip()
+        if area not in allowed:
+            raise HTTPException(400, f"Área de conocimiento no válida: {area}")
+        if area not in clean:
+            clean.append(area)
+    return clean or None
 
 @app.middleware("http")
 async def security_headers(request, call_next):
@@ -90,7 +107,7 @@ async def health():
 
     return {
         "status": "ok",
-        "version": "2.1.0",
+        "version": VERSION,
         "provider": s.chat_provider,
         "chat_provider": s.chat_provider,
         "embedding_provider": s.embedding_provider,
@@ -100,6 +117,15 @@ async def health():
         "auto_index": s.auto_index,
         "watch_interval_seconds": s.watch_interval_seconds,
         "watcher": watch_state.as_dict(),
+        "rag": {
+            "strategy": "weighted_rrf+mmr",
+            "top_k": s.rag_top_k,
+            "candidate_pool": s.rag_candidate_pool,
+            "rrf_k": s.rag_rrf_k,
+            "mmr_lambda": s.rag_mmr_lambda,
+            "min_score": s.rag_min_score,
+            "max_per_document": s.rag_max_per_document,
+        },
         **db.stats(),
     }
 
@@ -117,6 +143,7 @@ async def documents(limit: int = 100):
             (limit,),
         ).fetchall()
     return {"items": [dict(r) for r in rows]}
+
 
 def set_job(job_id, patch):
     with jobs_lock:
@@ -149,10 +176,13 @@ async def job_status(job_id: str):
 
 @app.post("/api/search")
 async def api_search(req: SearchRequest):
-    return {
-        "query": req.query,
-        "items": await search(db, s, req.query, req.top_k),
-    }
+    areas = normalize_source_areas(req.source_areas)
+    return await inspect_search(db, s, req.query, req.top_k, areas)
+
+@app.post("/api/inspect")
+async def api_inspect(req: SearchRequest):
+    areas = normalize_source_areas(req.source_areas)
+    return await inspect_search(db, s, req.query, req.top_k, areas)
 
 async def create_memory_candidate(question, answer):
     try:
@@ -162,10 +192,11 @@ async def create_memory_candidate(question, answer):
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
-    sources = await search(db, s, req.question, req.top_k)
+    areas = normalize_source_areas(req.source_areas)
+    sources = await search(db, s, req.question, req.top_k, areas)
     if not sources:
         return {
-            "answer": "No he encontrado contexto suficiente. Indexa documentos o reformula la pregunta.",
+            "answer": "No he encontrado contexto suficiente. Indexa documentos, cambia el filtro de área o reformula la pregunta.",
             "sources": [],
         }
 
@@ -175,19 +206,21 @@ async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         raise HTTPException(503, str(exc))
 
     if s.auto_memory_suggestions:
-        background_tasks.add_task(
-            create_memory_candidate,
-            req.question,
-            answer,
-        )
+        background_tasks.add_task(create_memory_candidate, req.question, answer)
 
     public_sources = [
         {
             "ref": f"S{i}",
             "path": x["path"],
             "title": x["title"],
+            "source_area": x["source_area"],
             "locator": x["locator"],
             "score": x["score"],
+            "rrf": x.get("rrf"),
+            "mmr": x.get("mmr"),
+            "semantic": x.get("semantic"),
+            "lexical_rank": x.get("lexical_rank"),
+            "semantic_rank": x.get("semantic_rank"),
             "preview": x["text"][:500],
         }
         for i, x in enumerate(sources, 1)
@@ -231,15 +264,8 @@ async def upload(file: UploadFile = File(...)):
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
-    ext = Path(name).suffix.lower()
-    target_dir = {
-        ".pdf": s.brain_root / "00_RAW/INBOX",
-        ".docx": s.brain_root / "00_RAW/INBOX",
-        ".md": s.brain_root / "00_RAW/INBOX",
-        ".txt": s.brain_root / "00_RAW/INBOX",
-    }[ext]
+    target_dir = s.brain_root / "00_RAW/INBOX"
     target_dir.mkdir(parents=True, exist_ok=True)
-
     target = ensure_inside(s.brain_root, target_dir / name)
     if target.exists():
         stem, suffix = target.stem, target.suffix
@@ -250,7 +276,6 @@ async def upload(file: UploadFile = File(...)):
 
     max_bytes = s.max_upload_mb * 1024 * 1024
     written = 0
-
     try:
         with target.open("wb") as out:
             while True:
@@ -261,21 +286,22 @@ async def upload(file: UploadFile = File(...)):
                 if written > max_bytes:
                     out.close()
                     target.unlink(missing_ok=True)
-                    raise HTTPException(
-                        413, f"El archivo supera {s.max_upload_mb} MB"
-                    )
+                    raise HTTPException(413, f"El archivo supera {s.max_upload_mb} MB")
                 out.write(chunk)
     finally:
         await file.close()
+
+    try:
+        validate_file_content(target)
+    except ValueError as exc:
+        target.unlink(missing_ok=True)
+        raise HTTPException(415, str(exc))
 
     return {
         "ok": True,
         "path": str(target.relative_to(s.brain_root)).replace("\\", "/"),
         "size_bytes": written,
-        "message": (
-            "Archivo guardado en 00_RAW/INBOX. "
-            "El Watch Folder lo indexará automáticamente."
-        ),
+        "message": "Archivo validado y guardado en 00_RAW/INBOX. El Watch Folder lo indexará automáticamente.",
     }
 
 web_root = Path(__file__).resolve().parent.parent / "web"
