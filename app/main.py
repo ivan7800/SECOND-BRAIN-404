@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 import asyncio
+import mimetypes
 import threading
 import uuid
 
@@ -10,16 +11,18 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from .benchmark import load_cases, run_benchmark
 from .config import get_settings, ensure_structure
 from .db import Database
 from .security import validate_upload, validate_file_content, ensure_inside
 from .retrieval import index_all, search, inspect_search, build_rag_prompt
+from .sources import resolve_source_path, read_source_fragment
 from .llm import generate, LLMError
 from .graph import build_graph
 from .memory import propose_memory, list_candidates, approve_candidate, reject_candidate
 from .watcher import WatchState, watch_loop
 
-VERSION = "2.2.0"
+VERSION = "2.3.0"
 s = get_settings()
 ensure_structure(s)
 db = Database(s.brain_root / "90_SYSTEM/database/second-brain.db")
@@ -27,6 +30,9 @@ db = Database(s.brain_root / "90_SYSTEM/database/second-brain.db")
 jobs = {}
 jobs_lock = threading.Lock()
 watch_state = WatchState()
+project_root = Path(__file__).resolve().parent.parent
+benchmark_file = project_root / "benchmarks/rag_queries.json"
+
 
 @asynccontextmanager
 async def lifespan(app):
@@ -43,6 +49,7 @@ async def lifespan(app):
             except asyncio.CancelledError:
                 pass
 
+
 app = FastAPI(
     title="Second Brain 404",
     version=VERSION,
@@ -51,15 +58,29 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 class SearchRequest(BaseModel):
     query: str = Field(min_length=2, max_length=2000)
     top_k: int | None = Field(default=None, ge=1, le=20)
     source_areas: list[str] | None = None
 
+
 class ChatRequest(BaseModel):
     question: str = Field(min_length=2, max_length=8000)
     top_k: int | None = Field(default=None, ge=1, le=20)
     source_areas: list[str] | None = None
+
+
+class BenchmarkCaseRequest(BaseModel):
+    id: str | None = Field(default=None, max_length=120)
+    query: str = Field(min_length=2, max_length=2000)
+    expected_paths: list[str] = Field(min_length=1, max_length=20)
+    source_areas: list[str] | None = None
+
+
+class BenchmarkRequest(BaseModel):
+    top_k: int = Field(default=5, ge=1, le=20)
+    cases: list[BenchmarkCaseRequest] | None = Field(default=None, max_length=50)
 
 
 def normalize_source_areas(values):
@@ -75,6 +96,7 @@ def normalize_source_areas(values):
             clean.append(area)
     return clean or None
 
+
 @app.middleware("http")
 async def security_headers(request, call_next):
     response = await call_next(request)
@@ -88,6 +110,7 @@ async def security_headers(request, call_next):
         "base-uri 'self'; frame-ancestors 'none'"
     )
     return response
+
 
 @app.get("/api/health")
 async def health():
@@ -118,16 +141,20 @@ async def health():
         "watch_interval_seconds": s.watch_interval_seconds,
         "watcher": watch_state.as_dict(),
         "rag": {
-            "strategy": "weighted_rrf+mmr",
+            "strategy": "weighted_rrf+optional_local_rerank+mmr",
             "top_k": s.rag_top_k,
             "candidate_pool": s.rag_candidate_pool,
             "rrf_k": s.rag_rrf_k,
+            "reranker": s.rag_reranker,
+            "rerank_weight": s.rag_rerank_weight,
             "mmr_lambda": s.rag_mmr_lambda,
             "min_score": s.rag_min_score,
             "max_per_document": s.rag_max_per_document,
+            "chunking": "structural",
         },
         **db.stats(),
     }
+
 
 @app.get("/api/documents")
 async def documents(limit: int = 100):
@@ -149,15 +176,19 @@ def set_job(job_id, patch):
     with jobs_lock:
         jobs.setdefault(job_id, {}).update(patch)
 
+
 async def run_index(job_id):
     set_job(job_id, {"status": "running"})
+
     def progress(data):
         set_job(job_id, {"progress": data})
+
     try:
         result = await index_all(db, s, progress)
         set_job(job_id, {"status": "done", "result": result})
     except Exception as exc:
         set_job(job_id, {"status": "error", "error": str(exc)})
+
 
 @app.post("/api/index")
 async def start_index(background_tasks: BackgroundTasks):
@@ -165,6 +196,7 @@ async def start_index(background_tasks: BackgroundTasks):
     set_job(job_id, {"status": "queued", "progress": {}})
     background_tasks.add_task(run_index, job_id)
     return {"job_id": job_id, "status": "queued"}
+
 
 @app.get("/api/jobs/{job_id}")
 async def job_status(job_id: str):
@@ -174,21 +206,73 @@ async def job_status(job_id: str):
             raise HTTPException(404, "Trabajo no encontrado")
         return dict(job)
 
+
 @app.post("/api/search")
 async def api_search(req: SearchRequest):
     areas = normalize_source_areas(req.source_areas)
     return await inspect_search(db, s, req.query, req.top_k, areas)
+
 
 @app.post("/api/inspect")
 async def api_inspect(req: SearchRequest):
     areas = normalize_source_areas(req.source_areas)
     return await inspect_search(db, s, req.query, req.top_k, areas)
 
+
+@app.get("/api/source")
+async def api_source(path: str, locator: str = ""):
+    try:
+        source = resolve_source_path(s, path)
+        text = read_source_fragment(source, locator)
+    except FileNotFoundError:
+        raise HTTPException(404, "Fuente no encontrada")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {
+        "path": str(source.relative_to(s.brain_root)).replace("\\", "/"),
+        "locator": locator,
+        "text": text,
+    }
+
+
+@app.get("/api/source/raw")
+async def api_source_raw(path: str):
+    try:
+        source = resolve_source_path(s, path)
+    except FileNotFoundError:
+        raise HTTPException(404, "Fuente no encontrada")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    media_type = mimetypes.guess_type(source.name)[0] or "application/octet-stream"
+    return FileResponse(source, media_type=media_type)
+
+
+@app.post("/api/benchmark")
+async def api_benchmark(req: BenchmarkRequest):
+    if req.cases:
+        cases = []
+        for case in req.cases:
+            areas = normalize_source_areas(case.source_areas)
+            cases.append({
+                "id": case.id,
+                "query": case.query,
+                "expected_paths": case.expected_paths,
+                "source_areas": areas,
+            })
+    else:
+        try:
+            cases = load_cases(benchmark_file)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(500, f"Benchmark no disponible: {exc}")
+    return await run_benchmark(db, s, cases, req.top_k)
+
+
 async def create_memory_candidate(question, answer):
     try:
         await propose_memory(db, s, question, answer)
     except Exception:
         pass
+
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
@@ -216,6 +300,8 @@ async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             "source_area": x["source_area"],
             "locator": x["locator"],
             "score": x["score"],
+            "base_score": x.get("base_score"),
+            "rerank": x.get("rerank"),
             "rrf": x.get("rrf"),
             "mmr": x.get("mmr"),
             "semantic": x.get("semantic"),
@@ -227,15 +313,18 @@ async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     ]
     return {"answer": answer, "sources": public_sources}
 
+
 @app.get("/api/graph")
 async def graph():
     return build_graph(s.brain_root)
+
 
 @app.get("/api/memory/candidates")
 async def memory_candidates(status: str = "pending", limit: int = 50):
     if status not in {"pending", "approved", "rejected"}:
         raise HTTPException(400, "Estado no válido")
     return {"items": list_candidates(db, status, limit)}
+
 
 @app.post("/api/memory/candidates/{candidate_id}/approve")
 async def memory_approve(candidate_id: int):
@@ -247,6 +336,7 @@ async def memory_approve(candidate_id: int):
     except ValueError as exc:
         raise HTTPException(409, str(exc))
 
+
 @app.post("/api/memory/candidates/{candidate_id}/reject")
 async def memory_reject(candidate_id: int):
     try:
@@ -256,6 +346,7 @@ async def memory_reject(candidate_id: int):
         raise HTTPException(404, str(exc))
     except ValueError as exc:
         raise HTTPException(409, str(exc))
+
 
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)):
@@ -304,8 +395,10 @@ async def upload(file: UploadFile = File(...)):
         "message": "Archivo validado y guardado en 00_RAW/INBOX. El Watch Folder lo indexará automáticamente.",
     }
 
-web_root = Path(__file__).resolve().parent.parent / "web"
+
+web_root = project_root / "web"
 app.mount("/assets", StaticFiles(directory=web_root / "assets"), name="assets")
+
 
 @app.get("/")
 async def root():
