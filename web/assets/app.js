@@ -37,7 +37,8 @@ async function health(){
     $("#info").innerHTML=[
       ["Versión",h.version],["Proveedor",h.provider],["Chat",h.chat_model],
       ["Embeddings",h.embedding_model],["Ollama",h.ollama?"conectado":"no disponible"],
-      ["RAG",rag.strategy||"—"],["MMR λ",rag.mmr_lambda??"—"],["RRF k",rag.rrf_k??"—"],
+      ["RAG",rag.strategy||"—"],["Chunking",rag.chunking||"—"],["Reranker",rag.reranker||"—"],
+      ["Peso rerank",rag.rerank_weight??"—"],["MMR λ",rag.mmr_lambda??"—"],["RRF k",rag.rrf_k??"—"],
       ["Pool",rag.candidate_pool??"—"],["Máx/doc",rag.max_per_document??"—"],
       ["Auto-index",h.auto_index?"activo":"desactivado"],["Watch interval",`${h.watch_interval_seconds}s`],
       ["Último scan",watcher.last_scan||"pendiente"],["Documentos",h.documents],
@@ -49,22 +50,47 @@ async function health(){
   }
 }
 
+function sourceButton(x,label){
+  const path=encodeURIComponent(x.path||""),locator=encodeURIComponent(x.locator||"");
+  return `<button class="source-link" data-path="${path}" data-locator="${locator}">${esc(label||x.ref||"Fuente")}</button>`;
+}
 function sourceLine(x){
   const pct=Math.round((x.score||0)*100);
-  return `${esc(x.ref||"")} · ${esc(x.path)} · ${esc(x.locator)} · ${pct}%`;
+  const rr=x.rerank==null?"":` · rerank ${Number(x.rerank).toFixed(2)}`;
+  return `${sourceButton(x,x.ref||"Fuente")} <span>${esc(x.path)} · ${esc(x.locator)} · ${pct}%${rr}</span>`;
+}
+function appendSources(target,sources,title="Fuentes recuperadas"){
+  if(!sources?.length)return;
+  const s=document.createElement("div");s.className="sources";
+  s.innerHTML=`<b>${esc(title)}</b><div class="source-list">${sources.map(sourceLine).join("")}</div>`;
+  target.appendChild(s);
 }
 function message(role,text,sources=[]){
   const row=document.createElement("div");row.className=`msg ${role}`;
   const av=document.createElement("i");av.textContent=role==="user"?"YOU":"404";
   const b=document.createElement("div");b.textContent=text;
-  if(sources.length){
-    const s=document.createElement("div");s.className="sources";
-    s.innerHTML="<b>Fuentes</b><br>"+sources.map(sourceLine).join("<br>");
-    b.appendChild(s);
-  }
+  appendSources(b,sources,"Fuentes");
   row.append(av,b);$("#chat").appendChild(row);$("#chat").scrollTop=$("#chat").scrollHeight;
   return b;
 }
+
+async function openSource(path,locator){
+  const dialog=$("#sourceDialog"), text=$("#sourceText");
+  $("#sourceTitle").textContent=path;
+  $("#sourceLocator").textContent=locator||"Documento";
+  text.textContent="Cargando fragmento…";
+  $("#openOriginal").href=`/api/source/raw?path=${encodeURIComponent(path)}`;
+  if(dialog.showModal&&!dialog.open)dialog.showModal();else dialog.setAttribute("open","");
+  try{
+    const d=await api(`/api/source?path=${encodeURIComponent(path)}&locator=${encodeURIComponent(locator||"")}`);
+    text.textContent=d.text||"(Fragmento sin texto extraíble)";
+  }catch(e){text.textContent=`Error: ${e.message}`}
+}
+$("#closeSource").onclick=()=>{const d=$("#sourceDialog");if(d.close)d.close();else d.removeAttribute("open")};
+document.addEventListener("click",e=>{
+  const b=e.target.closest(".source-link");if(!b)return;
+  e.preventDefault();openSource(decodeURIComponent(b.dataset.path||""),decodeURIComponent(b.dataset.locator||""));
+});
 
 $("#chatForm").onsubmit=async e=>{
   e.preventDefault();
@@ -74,32 +100,40 @@ $("#chatForm").onsubmit=async e=>{
   try{
     const d=await api("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q})});
     wait.textContent=d.answer;
-    if(d.sources?.length){
-      const s=document.createElement("div");s.className="sources";
-      s.innerHTML="<b>Fuentes recuperadas</b><br>"+d.sources.map(sourceLine).join("<br>");
-      wait.appendChild(s);
-    }
+    appendSources(wait,d.sources,"Fuentes recuperadas");
     setTimeout(health,1500);
   }catch(x){wait.textContent=`Error: ${x.message}`}
 };
 
 $("#searchForm").onsubmit=async e=>{
   e.preventDefault();const box=$("#results"), meta=$("#retrievalMeta");
-  box.innerHTML="<div class='result'>Buscando…</div>";meta.textContent="";
+  box.innerHTML="<div class='result'>Buscando…</div>";meta.textContent="";$("#benchmarkResults").innerHTML="";
   try{
     const area=$("#areaFilter").value;
     const payload={query:$("#query").value,top_k:10};
     if(area)payload.source_areas=[area];
     const d=await api("/api/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     const r=d.ranking||{};
-    meta.textContent=`${r.strategy||"hybrid"} · pool ${r.candidate_pool??"—"} · RRF k ${r.rrf_k??"—"} · MMR λ ${r.mmr_lambda??"—"} · máximo ${r.max_per_document??"—"}/documento`;
+    meta.textContent=`${r.strategy||"hybrid"} · reranker ${r.reranker||"none"} (${r.rerank_weight??0}) · pool ${r.candidate_pool??"—"} · RRF k ${r.rrf_k??"—"} · MMR λ ${r.mmr_lambda??"—"}`;
     box.innerHTML=d.items.length?d.items.map(x=>{
       const diag=[`RRF ${Number(x.rrf||0).toFixed(3)}`,`MMR ${Number(x.mmr||0).toFixed(3)}`];
+      if(x.rerank!=null)diag.push(`rerank ${Number(x.rerank).toFixed(3)}`);
       if(x.semantic_rank)diag.push(`sem #${x.semantic_rank}`);
       if(x.lexical_rank)diag.push(`FTS #${x.lexical_rank}`);
-      return `<article class="result"><div class="row"><strong>${esc(x.title)} · ${esc(x.locator)}</strong><span class="score">${Math.round(x.score*100)}%</span></div><p>${esc(x.text.slice(0,600))}${x.text.length>600?"…":""}</p><div class="meta">${esc(x.path)} · ${esc(x.source_area)} · ${diag.map(esc).join(" · ")}</div></article>`;
+      return `<article class="result"><div class="row"><strong>${esc(x.title)} · ${esc(x.locator)}</strong><span class="score">${Math.round(x.score*100)}%</span></div><p>${esc(x.text.slice(0,600))}${x.text.length>600?"…":""}</p><div class="result-actions">${sourceButton(x,"Abrir fuente")}</div><div class="meta">${esc(x.path)} · ${esc(x.source_area)} · ${diag.map(esc).join(" · ")}</div></article>`;
     }).join(""):"<div class='result'>Sin resultados.</div>";
   }catch(x){box.innerHTML=`<div class='result'>Error: ${esc(x.message)}</div>`}
+};
+
+$("#runBenchmark").onclick=async()=>{
+  const b=$("#runBenchmark"), box=$("#benchmarkResults");b.disabled=true;b.textContent="Midiendo…";
+  box.innerHTML="<div class='result'>Ejecutando benchmark sobre el índice actual…</div>";
+  try{
+    const d=await api("/api/benchmark",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({top_k:5})});
+    const state=d.passed?"PASS":"REVIEW";
+    box.innerHTML=`<article class="benchmark-card"><div class="row"><strong>${state} · ${d.queries} consultas</strong><span class="score">Hit@${d.top_k} ${Math.round(d.hit_rate*100)}%</span></div><p>MRR ${Number(d.mrr).toFixed(3)} · rango medio ${d.mean_rank_when_hit??"—"}</p><div class="benchmark-cases">${d.details.map(x=>`<div><b>${x.hit?"✓":"×"}</b> ${esc(x.id)} · rank ${x.rank??"—"} · ${esc(x.query)}</div>`).join("")}</div></article>`;
+  }catch(x){box.innerHTML=`<div class='result'>Error: ${esc(x.message)}</div>`}
+  finally{b.disabled=false;b.textContent="Benchmark RAG"}
 };
 
 async function loadDocs(){
