@@ -36,7 +36,7 @@ def iter_indexable_paths(s):
 async def _embed_batched(texts, s, batch_size=16):
     out = []
     for i in range(0, len(texts), batch_size):
-        out.extend(await embed(texts[i:i+batch_size], s))
+        out.extend(await embed(texts[i:i + batch_size], s))
     return out
 
 
@@ -194,8 +194,12 @@ def _fts_query(text):
     return " OR ".join(f'"{t}"' for t in tokens[:12])
 
 
+def _token_list(text):
+    return re.findall(r"[\wÀ-ÿ]{3,}", text.lower(), flags=re.UNICODE)
+
+
 def _tokens(text):
-    return set(re.findall(r"[\wÀ-ÿ]{3,}", text.lower(), flags=re.UNICODE))
+    return set(_token_list(text))
 
 
 def _text_similarity(a, b):
@@ -207,6 +211,83 @@ def _text_similarity(a, b):
 
 def _rrf(rank, k):
     return 0.0 if rank is None else 1.0 / (k + rank)
+
+
+def _proximity_score(query, text):
+    q = list(dict.fromkeys(_token_list(query)))
+    t = _token_list(text)
+    if len(q) < 2 or not t:
+        return 0.0
+    positions = {token: [] for token in q}
+    for i, token in enumerate(t):
+        if token in positions:
+            positions[token].append(i)
+    available = [token for token in q if positions[token]]
+    if len(available) < 2:
+        return 0.0
+    points = sorted((pos, token) for token in available for pos in positions[token])
+    needed = len(available)
+    counts = Counter()
+    have = 0
+    left = 0
+    best = None
+    for right, (pos, token) in enumerate(points):
+        counts[token] += 1
+        if counts[token] == 1:
+            have += 1
+        while have == needed and left <= right:
+            span = points[right][0] - points[left][0] + 1
+            best = span if best is None else min(best, span)
+            left_token = points[left][1]
+            counts[left_token] -= 1
+            if counts[left_token] == 0:
+                have -= 1
+            left += 1
+    if best is None:
+        return 0.0
+    return max(0.0, min(1.0, needed / max(needed, best)))
+
+
+def local_rerank_score(query, item):
+    qtokens = _tokens(query)
+    if not qtokens:
+        return 0.0
+    text_tokens = _tokens(item.get("text", ""))
+    title_tokens = _tokens(item.get("title", ""))
+    locator_tokens = _tokens(item.get("locator", ""))
+    coverage = len(qtokens & text_tokens) / len(qtokens)
+    title_hit = len(qtokens & title_tokens) / len(qtokens)
+    locator_hit = len(qtokens & locator_tokens) / len(qtokens)
+    normalized_query = " ".join(_token_list(query))
+    normalized_text = " ".join(_token_list(item.get("text", "")))
+    phrase = 1.0 if len(normalized_query) >= 5 and normalized_query in normalized_text else 0.0
+    proximity = _proximity_score(query, item.get("text", ""))
+    score = (
+        coverage * 0.46
+        + title_hit * 0.20
+        + locator_hit * 0.08
+        + phrase * 0.10
+        + proximity * 0.16
+    )
+    return round(max(0.0, min(1.0, score)), 4)
+
+
+def _apply_reranker(query, candidates, settings):
+    if settings.rag_reranker == "none" or settings.rag_rerank_weight <= 0:
+        for item in candidates:
+            item["base_score"] = item["score"]
+            item["rerank"] = None
+        return candidates
+
+    weight = settings.rag_rerank_weight
+    for item in candidates:
+        base = item["score"]
+        rerank = local_rerank_score(query, item)
+        item["base_score"] = round(base, 4)
+        item["rerank"] = rerank
+        item["score"] = round((1.0 - weight) * base + weight * rerank, 4)
+    candidates.sort(key=lambda x: x["score"], reverse=True)
+    return candidates
 
 
 def _mmr_select(candidates, top_k, mmr_lambda, max_per_document):
@@ -288,7 +369,9 @@ async def search(db, s, query, top_k=None, source_areas=None):
         for row in rows:
             if row["embedding_json"]:
                 try:
-                    semantic_score[int(row["id"])] = max(0.0, cosine(qvec, json.loads(row["embedding_json"])))
+                    semantic_score[int(row["id"])] = max(
+                        0.0, cosine(qvec, json.loads(row["embedding_json"]))
+                    )
                 except Exception:
                     pass
     except EmbeddingError:
@@ -332,10 +415,14 @@ async def search(db, s, query, top_k=None, source_areas=None):
             "semantic_rank": sr,
             "lexical_bm25": round(lexical_bm25[cid], 4) if cid in lexical_bm25 else None,
             "rrf": round(rrf_norm, 4),
-            "path": row["path"], "title": row["title"], "source_area": row["source_area"],
-            "locator": row["locator"], "text": row["text"],
+            "path": row["path"],
+            "title": row["title"],
+            "source_area": row["source_area"],
+            "locator": row["locator"],
+            "text": row["text"],
         })
     candidates.sort(key=lambda x: x["score"], reverse=True)
+    candidates = _apply_reranker(query, candidates, s)
     return _mmr_select(candidates, top_k, s.rag_mmr_lambda, s.rag_max_per_document)
 
 
@@ -345,8 +432,10 @@ async def inspect_search(db, s, query, top_k=None, source_areas=None):
         "query": query,
         "items": items,
         "ranking": {
-            "strategy": "weighted_rrf+mmr",
+            "strategy": "weighted_rrf+optional_local_rerank+mmr",
             "rrf_k": s.rag_rrf_k,
+            "reranker": s.rag_reranker,
+            "rerank_weight": s.rag_rerank_weight,
             "mmr_lambda": s.rag_mmr_lambda,
             "min_score": s.rag_min_score,
             "candidate_pool": s.rag_candidate_pool,
