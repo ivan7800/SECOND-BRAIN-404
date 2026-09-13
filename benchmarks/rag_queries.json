@@ -1,0 +1,30 @@
+{
+  "version": "2.3.0",
+  "description": "Smoke benchmark reproducible sobre el contenido inicial del vault.",
+  "cases": [
+    {
+      "id": "architecture",
+      "query": "arquitectura de second brain conocimiento memoria output",
+      "expected_paths": ["10_WIKI/Arquitectura-Second-Brain.md"],
+      "source_areas": ["10_WIKI"]
+    },
+    {
+      "id": "memory",
+      "query": "memoria persistente controlada",
+      "expected_paths": ["10_WIKI/Memoria.md"],
+      "source_areas": ["10_WIKI"]
+    },
+    {
+      "id": "raw",
+      "query": "fuentes raw documentos originales",
+      "expected_paths": ["10_WIKI/Fuentes RAW.md"],
+      "source_areas": ["10_WIKI"]
+    },
+    {
+      "id": "output",
+      "query": "output resultados generados",
+      "expected_paths": ["10_WIKI/Output.md"],
+      "source_areas": ["10_WIKI"]
+    }
+  ]
+}
