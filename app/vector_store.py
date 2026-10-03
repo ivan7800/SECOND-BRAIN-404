@@ -18,6 +18,11 @@ def load_sqlite_vec(conn):
     if sqlite_vec is None:
         return False
     try:
+        conn.execute("SELECT vec_version()")
+        return True
+    except Exception:
+        pass
+    try:
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)
