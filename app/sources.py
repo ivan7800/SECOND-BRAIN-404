@@ -1,11 +1,10 @@
 import re
-from pathlib import Path
 
 from docx import Document
 from pypdf import PdfReader
 
+from .extractors import extract_sections, SUPPORTED
 from .security import ensure_inside
-
 
 _LINE_RE = re.compile(r"líneas\s+(\d+)-(\d+)", re.IGNORECASE)
 _PARA_RE = re.compile(r"párrafos\s+(\d+)-(\d+)", re.IGNORECASE)
@@ -56,5 +55,23 @@ def read_source_fragment(path, locator, max_chars=12000):
         else:
             text = "\n\n".join(paragraphs[:100])
         return text[:max_chars]
+
+    if ext in SUPPORTED:
+        sections = extract_sections(path)
+        if not sections:
+            return ""
+        chosen = None
+        if locator:
+            for section in sections:
+                if section.get("locator", "") == locator:
+                    chosen = section
+                    break
+            if chosen is None:
+                for section in sections:
+                    if locator in section.get("locator", "") or section.get("locator", "") in locator:
+                        chosen = section
+                        break
+        chosen = chosen or sections[0]
+        return chosen.get("text", "")[:max_chars]
 
     raise ValueError(f"Formato no soportado: {ext}")
