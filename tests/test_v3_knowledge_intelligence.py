@@ -14,6 +14,7 @@ from app.db import Database
 from app.extractors import extract_sections
 from app.retrieval import index_one, inspect_search
 from app.security import validate_file_content
+from app.vector_store import upsert_vector, vector_search, vector_status
 
 
 class CitationVerifierTests(unittest.TestCase):
@@ -28,6 +29,25 @@ class CitationVerifierTests(unittest.TestCase):
         report = verify_citations("La respuesta depende de una fuente [S9].", [{"text": "otra cosa"}], 0.05)
         self.assertEqual(report["invalid_references"], [9])
         self.assertEqual(report["confidence"], "low")
+
+
+class VectorStoreTests(unittest.TestCase):
+    def test_sqlite_vec_round_trip_when_installed(self):
+        with tempfile.TemporaryDirectory() as td:
+            db = Database(Path(td) / "vectors.db")
+            with db.connect() as conn:
+                status = vector_status(conn)
+                if not status["available"]:
+                    self.skipTest("sqlite-vec no está disponible en este runtime")
+                self.assertTrue(upsert_vector(conn, 101, [1.0, 0.0, 0.0], "test-model"))
+                self.assertTrue(upsert_vector(conn, 102, [0.0, 1.0, 0.0], "test-model"))
+            with db.connect() as conn:
+                scores, backend = vector_search(conn, [1.0, 0.0, 0.0], 2, "test-model")
+                status = vector_status(conn)
+            self.assertEqual(backend, "sqlite-vec")
+            self.assertEqual(next(iter(scores)), 101)
+            self.assertGreater(scores[101], scores[102])
+            self.assertEqual(status["indexed_vectors"], 2)
 
 
 class FormatAwareExtractionTests(unittest.TestCase):
