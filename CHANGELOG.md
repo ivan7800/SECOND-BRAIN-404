@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.0.0 — Knowledge Intelligence
+- Añadido backend vectorial local con `sqlite-vec` y distancia coseno.
+- Migración automática de embeddings JSON de v2.x al índice vectorial de v3.
+- Fallback resiliente `sqlite-vec → brute-force → FTS5` según disponibilidad.
+- Pipeline actualizado a `FTS5 + vector search + Weighted RRF + reranker + MMR`.
+- Añadido RAG Debugger con candidatos por etapa, backend semántico y latencias.
+- Añadido Citation Verifier para referencias `[Sx]`, referencias inválidas y soporte léxico.
+- Chat devuelve `citation_report` y `retrieval_trace` además de las fuentes.
+- Ingesta ampliada a XLSX, PPTX, HTML/HTM, CSV, JSON, EPUB y EML.
+- Navegación de fuentes ampliada a todos los formatos indexables.
+- Validación de uploads reforzada para contenedores Office/EPUB, JSON y EML.
+- Configuración nueva: `RAG_VECTOR_BACKEND` y `CITATION_MIN_OVERLAP`.
+- Interfaz renovada como `Knowledge Intelligence v3.0` y `RAG Debugger`.
+- Añadida suite de tests específica de v3, incluido round-trip sqlite-vec cuando está disponible.
+- Añadido GitHub Actions QA para Windows/Linux, `pip-audit` y Docker build.
+- README reescrito para instalación, migración, seguridad, formatos y arquitectura v3.
+
 ## 2.3.0 — Retrieval Intelligence
 - Chunking estructural para Markdown, DOCX y PDF con localizadores preservados.
 - Reranker local opcional basado en cobertura, título, frase y proximidad.
