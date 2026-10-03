@@ -1,7 +1,8 @@
+import json
 import sqlite3
 from contextlib import contextmanager
 
-from .vector_store import load_sqlite_vec
+from .vector_store import load_sqlite_vec, upsert_vector, vector_status
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -65,6 +66,7 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+        self.vector_sync = self._sync_existing_vectors()
 
     @contextmanager
     def connect(self):
@@ -77,6 +79,48 @@ class Database:
             conn.commit()
         finally:
             conn.close()
+
+    def _sync_existing_vectors(self):
+        """Migra embeddings JSON de v2.x al índice sqlite-vec sin romper el fallback."""
+        with self.connect() as conn:
+            if not load_sqlite_vec(conn):
+                return {"available": False, "synced": 0, "skipped": True}
+            model_row = conn.execute(
+                """
+                SELECT embedding_model, COUNT(*) AS n
+                FROM chunks
+                WHERE embedding_json IS NOT NULL AND embedding_model IS NOT NULL
+                GROUP BY embedding_model
+                ORDER BY n DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            if not model_row:
+                return {"available": True, "synced": 0, "skipped": True}
+            model = model_row["embedding_model"]
+            rows = conn.execute(
+                "SELECT id,embedding_json FROM chunks WHERE embedding_json IS NOT NULL AND embedding_model=?",
+                (model,),
+            ).fetchall()
+            status = vector_status(conn)
+            if status.get("model") == model and status.get("indexed_vectors") == len(rows):
+                return {"available": True, "synced": 0, "skipped": True, "model": model}
+            synced = 0
+            failed = 0
+            for row in rows:
+                try:
+                    vector = json.loads(row["embedding_json"])
+                    if upsert_vector(conn, row["id"], vector, model):
+                        synced += 1
+                except Exception:
+                    failed += 1
+            return {
+                "available": True,
+                "synced": synced,
+                "failed": failed,
+                "skipped": False,
+                "model": model,
+            }
 
     def stats(self):
         with self.connect() as conn:
