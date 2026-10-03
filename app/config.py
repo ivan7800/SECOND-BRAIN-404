@@ -23,6 +23,8 @@ class Settings:
     rag_max_per_document: int
     rag_reranker: str
     rag_rerank_weight: float
+    rag_vector_backend: str
+    citation_min_overlap: float
     chunk_size: int
     chunk_overlap: int
     max_upload_mb: int
@@ -81,13 +83,17 @@ def get_settings():
         gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.7-flash"),
         rag_top_k=_ival("RAG_TOP_K", 6, 1, 20),
-        rag_candidate_pool=_ival("RAG_CANDIDATE_POOL", 50, 10, 250),
+        rag_candidate_pool=_ival("RAG_CANDIDATE_POOL", 50, 10, 500),
         rag_rrf_k=_ival("RAG_RRF_K", 60, 10, 200),
         rag_mmr_lambda=_fval("RAG_MMR_LAMBDA", 0.72, 0.05, 1.0),
         rag_min_score=_fval("RAG_MIN_SCORE", 0.08, 0.0, 1.0),
         rag_max_per_document=_ival("RAG_MAX_PER_DOCUMENT", 2, 1, 10),
         rag_reranker=_choice("RAG_RERANKER", "local", {"local", "none"}),
         rag_rerank_weight=_fval("RAG_RERANK_WEIGHT", 0.24, 0.0, 0.60),
+        rag_vector_backend=_choice(
+            "RAG_VECTOR_BACKEND", "auto", {"auto", "sqlite-vec", "bruteforce"}
+        ),
+        citation_min_overlap=_fval("CITATION_MIN_OVERLAP", 0.08, 0.0, 1.0),
         chunk_size=_ival("CHUNK_SIZE", 1400, 400, 5000),
         chunk_overlap=_ival("CHUNK_OVERLAP", 220, 0, 1000),
         max_upload_mb=_ival("MAX_UPLOAD_MB", 50, 1, 500),

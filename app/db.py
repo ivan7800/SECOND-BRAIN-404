@@ -1,6 +1,8 @@
 import sqlite3
 from contextlib import contextmanager
 
+from .vector_store import load_sqlite_vec
+
 SCHEMA = """
 PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
@@ -33,6 +35,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     tokenize='unicode61 remove_diacritics 2'
 );
 
+CREATE TABLE IF NOT EXISTS vector_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS memory_candidates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -47,8 +54,10 @@ CREATE TABLE IF NOT EXISTS memory_candidates (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_embedding_model ON chunks(embedding_model);
 CREATE INDEX IF NOT EXISTS idx_memory_status ON memory_candidates(status, created_at);
 """
+
 
 class Database:
     def __init__(self, path):
@@ -62,6 +71,7 @@ class Database:
         conn = sqlite3.connect(self.path, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
+        load_sqlite_vec(conn)
         try:
             yield conn
             conn.commit()

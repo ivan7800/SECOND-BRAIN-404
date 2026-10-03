@@ -1,8 +1,14 @@
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
+import json
 import re
 import zipfile
 
-ALLOWED_EXTENSIONS = {".md", ".txt", ".pdf", ".docx"}
+ALLOWED_EXTENSIONS = {
+    ".md", ".txt", ".pdf", ".docx", ".xlsx", ".pptx",
+    ".html", ".htm", ".csv", ".json", ".epub", ".eml",
+}
 _TEXT_SAMPLE_BYTES = 128 * 1024
 
 
@@ -21,13 +27,33 @@ def validate_upload(name):
     return cleaned
 
 
+def _validate_zip_structure(path, required):
+    if not zipfile.is_zipfile(path):
+        raise ValueError("El archivo no contiene un contenedor ZIP válido")
+    try:
+        with zipfile.ZipFile(path) as archive:
+            names = set(archive.namelist())
+            if not required.issubset(names):
+                raise ValueError("El contenedor no tiene la estructura esperada")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Contenedor ZIP inválido") from exc
+
+
+def _validate_utf8_text(path):
+    sample = path.read_bytes()[:_TEXT_SAMPLE_BYTES]
+    if b"\x00" in sample:
+        raise ValueError("El archivo de texto contiene datos binarios")
+    try:
+        sample.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ValueError("El archivo de texto debe estar codificado en UTF-8") from exc
+
+
 def validate_file_content(path):
-    """Valida que el contenido coincida razonablemente con la extensión permitida."""
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise ValueError("Formato no permitido")
-
     if path.stat().st_size == 0:
         raise ValueError("Archivo vacío")
 
@@ -38,25 +64,32 @@ def validate_file_content(path):
         return True
 
     if suffix == ".docx":
-        if not zipfile.is_zipfile(path):
-            raise ValueError("El archivo no es un DOCX válido")
+        _validate_zip_structure(path, {"[Content_Types].xml", "word/document.xml"})
+        return True
+    if suffix == ".xlsx":
+        _validate_zip_structure(path, {"[Content_Types].xml", "xl/workbook.xml"})
+        return True
+    if suffix == ".pptx":
+        _validate_zip_structure(path, {"[Content_Types].xml", "ppt/presentation.xml"})
+        return True
+    if suffix == ".epub":
+        _validate_zip_structure(path, {"META-INF/container.xml"})
+        return True
+    if suffix == ".eml":
         try:
-            with zipfile.ZipFile(path) as archive:
-                names = set(archive.namelist())
-                required = {"[Content_Types].xml", "word/document.xml"}
-                if not required.issubset(names):
-                    raise ValueError("El contenedor no tiene estructura DOCX válida")
-        except zipfile.BadZipFile as exc:
-            raise ValueError("El archivo no es un DOCX válido") from exc
+            msg = BytesParser(policy=policy.default).parsebytes(path.read_bytes())
+        except Exception as exc:
+            raise ValueError("El archivo EML no se puede interpretar") from exc
+        if not (msg.get("subject") or msg.get("from") or msg.get_payload()):
+            raise ValueError("El archivo EML no contiene un mensaje reconocible")
         return True
 
-    sample = path.read_bytes()[:_TEXT_SAMPLE_BYTES]
-    if b"\x00" in sample:
-        raise ValueError("El archivo de texto contiene datos binarios")
-    try:
-        sample.decode("utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise ValueError("Los archivos Markdown/TXT deben estar codificados en UTF-8") from exc
+    _validate_utf8_text(path)
+    if suffix == ".json":
+        try:
+            json.loads(path.read_text(encoding="utf-8-sig"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ValueError("JSON inválido") from exc
     return True
 
 
