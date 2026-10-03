@@ -29,6 +29,10 @@ class ConfigAndSecurityTests(unittest.TestCase):
         with patch.dict(os.environ, {"EMBEDDING_PROVIDER": "none"}, clear=False):
             self.assertEqual(get_settings().embedding_provider, "none")
 
+    def test_vector_backend_configuration(self):
+        with patch.dict(os.environ, {"RAG_VECTOR_BACKEND": "sqlite-vec"}, clear=False):
+            self.assertEqual(get_settings().rag_vector_backend, "sqlite-vec")
+
     def test_structure_is_created(self):
         with tempfile.TemporaryDirectory() as td:
             with patch.dict(os.environ, {"BRAIN_ROOT": td}, clear=False):
@@ -46,8 +50,10 @@ class ConfigAndSecurityTests(unittest.TestCase):
 
     def test_upload_extension_allowlist(self):
         self.assertEqual(validate_upload("Informe.PDF"), "Informe.pdf")
+        self.assertEqual(validate_upload("panel.HTML"), "panel.html")
+        self.assertEqual(validate_upload("datos.XLSX"), "datos.xlsx")
         with self.assertRaises(ValueError):
-            validate_upload("payload.html")
+            validate_upload("payload.exe")
 
     def test_fts_query_is_bounded(self):
         query = " ".join(f"token{i}" for i in range(30))
@@ -92,7 +98,6 @@ class RetrievalTests(unittest.IsolatedAsyncioTestCase):
         first = await index_one(self.db, self.settings, p)
         second = await index_one(self.db, self.settings, p)
         self.assertEqual(first, (True, True))
-        # Se intenta completar embeddings faltantes; al estar desactivados, no reescribe el documento.
         self.assertEqual(second, (False, True))
         self.assertEqual(self.db.stats()["documents"], 1)
 
