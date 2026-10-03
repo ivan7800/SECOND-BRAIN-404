@@ -61,7 +61,10 @@ def _choice(name, default, allowed):
 
 
 def get_settings():
-    root = Path(os.getenv("BRAIN_ROOT", "./brain")).resolve()
+    # absolute() conserva alias/symlinks de entrada. Esto evita que Windows mezcle
+    # rutas 8.3 (RUNNER~1) con la ruta larga al calcular rutas relativas.
+    # Las comprobaciones de seguridad siguen usando resolve() en ensure_inside().
+    root = Path(os.getenv("BRAIN_ROOT", "./brain")).absolute()
     dirs = tuple(
         x.strip()
         for x in os.getenv(

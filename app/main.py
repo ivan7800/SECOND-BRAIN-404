@@ -14,15 +14,17 @@ from pydantic import BaseModel, Field
 from .benchmark import load_cases, run_benchmark
 from .config import get_settings, ensure_structure
 from .db import Database
-from .security import validate_upload, validate_file_content, ensure_inside
+from .security import ALLOWED_EXTENSIONS, validate_upload, validate_file_content, ensure_inside
 from .retrieval import index_all, search, inspect_search, build_rag_prompt
 from .sources import resolve_source_path, read_source_fragment
 from .llm import generate, LLMError
 from .graph import build_graph
 from .memory import propose_memory, list_candidates, approve_candidate, reject_candidate
 from .watcher import WatchState, watch_loop
+from .citations import verify_citations
+from .vector_store import vector_status
 
-VERSION = "2.3.0"
+VERSION = "3.0.0"
 s = get_settings()
 ensure_structure(s)
 db = Database(s.brain_root / "90_SYSTEM/database/second-brain.db")
@@ -127,6 +129,8 @@ async def health():
         "openai": s.openai_model,
         "gemini": s.gemini_model,
     }.get(s.chat_provider, "")
+    with db.connect() as conn:
+        vector = vector_status(conn)
 
     return {
         "status": "ok",
@@ -140,17 +144,21 @@ async def health():
         "auto_index": s.auto_index,
         "watch_interval_seconds": s.watch_interval_seconds,
         "watcher": watch_state.as_dict(),
+        "supported_formats": sorted(ALLOWED_EXTENSIONS),
+        "vector": vector,
         "rag": {
-            "strategy": "weighted_rrf+optional_local_rerank+mmr",
+            "strategy": "weighted_rrf+vector_search+optional_local_rerank+mmr",
             "top_k": s.rag_top_k,
             "candidate_pool": s.rag_candidate_pool,
             "rrf_k": s.rag_rrf_k,
             "reranker": s.rag_reranker,
             "rerank_weight": s.rag_rerank_weight,
+            "vector_backend": s.rag_vector_backend,
             "mmr_lambda": s.rag_mmr_lambda,
             "min_score": s.rag_min_score,
             "max_per_document": s.rag_max_per_document,
-            "chunking": "structural",
+            "chunking": "structural+format-aware",
+            "citation_verifier": "reference+lexical-evidence heuristic",
         },
         **db.stats(),
     }
@@ -277,11 +285,14 @@ async def create_memory_candidate(question, answer):
 @app.post("/api/chat")
 async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     areas = normalize_source_areas(req.source_areas)
-    sources = await search(db, s, req.question, req.top_k, areas)
+    retrieval_trace = {}
+    sources = await search(db, s, req.question, req.top_k, areas, trace=retrieval_trace)
     if not sources:
         return {
             "answer": "No he encontrado contexto suficiente. Indexa documentos, cambia el filtro de área o reformula la pregunta.",
             "sources": [],
+            "citation_report": verify_citations("", [], s.citation_min_overlap),
+            "retrieval_trace": retrieval_trace,
         }
 
     try:
@@ -289,6 +300,7 @@ async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     except LLMError as exc:
         raise HTTPException(503, str(exc))
 
+    citation_report = verify_citations(answer, sources, s.citation_min_overlap)
     if s.auto_memory_suggestions:
         background_tasks.add_task(create_memory_candidate, req.question, answer)
 
@@ -311,7 +323,12 @@ async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         }
         for i, x in enumerate(sources, 1)
     ]
-    return {"answer": answer, "sources": public_sources}
+    return {
+        "answer": answer,
+        "sources": public_sources,
+        "citation_report": citation_report,
+        "retrieval_trace": retrieval_trace,
+    }
 
 
 @app.get("/api/graph")

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0b0d10">
-  <title>Second Brain 404 v2.3.0</title>
+  <title>Second Brain 404 v3.0.0</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
   <aside>
     <div class="brand">
       <b>404</b>
-      <div><strong>SECOND BRAIN</strong><small>LOCAL KNOWLEDGE OS · v2.3.0</small></div>
+      <div><strong>SECOND BRAIN</strong><small>KNOWLEDGE INTELLIGENCE · v3.0.0</small></div>
     </div>
     <nav>
       <button class="nav active" data-view="chat">ASK</button>
@@ -31,11 +31,11 @@
   <main>
     <header>
       <div>
-        <p>RETRIEVAL INTELLIGENCE / v2.3</p>
+        <p>KNOWLEDGE INTELLIGENCE / v3.0</p>
         <h1 id="title">Pregunta a tu conocimiento</h1>
       </div>
       <div class="actions">
-        <label><input id="file" type="file" accept=".pdf,.docx,.md,.txt">+ Documento</label>
+        <label><input id="file" type="file" accept=".pdf,.docx,.xlsx,.pptx,.md,.txt,.html,.htm,.csv,.json,.epub,.eml">+ Documento</label>
         <button id="index">Reindexar</button>
       </div>
     </header>
@@ -43,9 +43,9 @@
     <section id="view-chat" class="view active">
       <div class="hero">
         <div>
-          <span>STRUCTURAL CHUNKING · RERANK · RRF · MMR</span>
-          <h2>Más precisión, mejores citas, menos ruido.</h2>
-          <p>La v2.3 entiende secciones de Markdown/DOCX/PDF, reordena candidatos localmente y permite abrir cada fuente en su fragmento original.</p>
+          <span>SQLITE-VEC · CITATION VERIFY · RRF · RERANK · MMR</span>
+          <h2>Tu conocimiento local, recuperable y auditable.</h2>
+          <p>La v3 acelera la búsqueda semántica con un índice vectorial local, verifica la disciplina de citas y explica cómo se ha construido cada respuesta.</p>
         </div>
         <div class="metrics">
           <div><b id="docs">0</b><small>documentos</small></div>
@@ -56,11 +56,11 @@
       </div>
 
       <div id="chat" class="chat">
-        <div class="msg ai"><i>404</i><div>Estoy listo. Las citas ahora son navegables y el retrieval se puede medir con un benchmark reproducible.</div></div>
+        <div class="msg ai"><i>404</i><div>Estoy listo. La v3 puede mostrar qué fuentes utilizó, comprobar sus referencias y medir el recorrido completo del retrieval.</div></div>
       </div>
 
       <form id="chatForm" class="composer">
-        <textarea id="question" rows="2" placeholder="¿Qué decisiones tomé sobre el proyecto…?" required></textarea>
+        <textarea id="question" rows="2" placeholder="¿Qué sabemos sobre…?" required></textarea>
         <button>Enviar</button>
       </form>
     </section>
@@ -69,8 +69,8 @@
       <div class="panel">
         <div class="head">
           <div>
-            <h2>Knowledge Inspector v2.3</h2>
-            <p>RRF + reranker local opcional + MMR, con trazabilidad y fuente navegable.</p>
+            <h2>RAG Debugger v3.0</h2>
+            <p>Inspecciona lexical, vector search, RRF, reranker, MMR, candidatos y latencias.</p>
           </div>
           <button id="runBenchmark">Benchmark RAG</button>
         </div>
@@ -104,10 +104,7 @@
     <section id="view-memory" class="view">
       <div class="panel">
         <div class="head">
-          <div>
-            <h2>Memoria controlada</h2>
-            <p>La IA propone memorias duraderas. Tú decides cuáles pasan a 40_MEMORY.</p>
-          </div>
+          <div><h2>Memoria controlada</h2><p>La IA propone memorias duraderas. Tú decides cuáles pasan a 40_MEMORY.</p></div>
           <button id="refreshMemory">Actualizar</button>
         </div>
         <div id="memoryList" class="memory-list"></div>
@@ -117,10 +114,7 @@
     <section id="view-graph" class="view">
       <div class="panel graph-panel">
         <div class="head">
-          <div>
-            <h2>Grafo de conocimiento</h2>
-            <p>Visualiza enlaces <code>[[WikiLink]]</code> entre tus notas.</p>
-          </div>
+          <div><h2>Grafo de conocimiento</h2><p>Visualiza enlaces <code>[[WikiLink]]</code> entre tus notas.</p></div>
           <button id="refreshGraph">Actualizar</button>
         </div>
         <div class="graph-meta" id="graphMeta"></div>
@@ -132,12 +126,13 @@
       <div class="grid">
         <div class="panel"><h2>Estado</h2><dl id="info"></dl></div>
         <div class="panel">
-          <h2>Retrieval Intelligence</h2>
+          <h2>Knowledge Intelligence</h2>
           <ul>
-            <li><b>Chunking estructural.</b> Markdown y DOCX se segmentan por secciones; PDF conserva páginas.</li>
-            <li><b>Reranker local.</b> Reordena por cobertura, título, frase y proximidad sin dependencia adicional.</li>
-            <li><b>Citas navegables.</b> Cada resultado abre el fragmento exacto y permite abrir el archivo original.</li>
-            <li><b>Benchmark automático.</b> Hit rate y MRR permiten detectar regresiones de calidad.</li>
+            <li><b>Vector search local.</b> sqlite-vec evita recorrer todos los embeddings cuando está disponible.</li>
+            <li><b>Fallback resiliente.</b> Si falla el vector backend, continúa con brute-force o FTS5.</li>
+            <li><b>Citation verifier.</b> Comprueba referencias [Sx] y solapamiento léxico con su evidencia.</li>
+            <li><b>RAG Debugger.</b> Expone candidatos y latencias por etapa.</li>
+            <li><b>Más formatos.</b> PDF, DOCX, XLSX, PPTX, Markdown, TXT, HTML, CSV, JSON, EPUB y EML.</li>
           </ul>
         </div>
         <div class="panel full"><h2>Actividad</h2><pre id="activity">Esperando acciones…</pre></div>
@@ -152,9 +147,7 @@
     <button id="closeSource" aria-label="Cerrar">×</button>
   </div>
   <pre id="sourceText"></pre>
-  <div class="source-dialog-actions">
-    <a id="openOriginal" target="_blank" rel="noopener">Abrir original</a>
-  </div>
+  <div class="source-dialog-actions"><a id="openOriginal" target="_blank" rel="noopener">Abrir original</a></div>
 </dialog>
 
 <div id="toast"></div>
